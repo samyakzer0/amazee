@@ -22,23 +22,31 @@ interface GameSceneProps {
   onFinish: () => void;
 }
 
-// Camera controller that follows player but allows Orbit/Zoom/Pan
+// Camera controller that follows player with a close follow perspective
 const CameraController: React.FC<{ playerPos: Position }> = ({ playerPos }) => {
     const { camera, gl } = useThree();
     const controlsRef = useRef<any>(null);
     
-    // We track the smoothed visual position of the player to sync camera movement
+    // Camera offset - positioned behind and above the player for a closer follow view
+    const cameraOffset = useRef(new Vector3(6, 8, 6)); // Closer offset for tighter follow
     const currentLookAt = useRef(new Vector3(playerPos.x, 0, playerPos.y));
     const initialized = useRef(false);
     
-    // Initialize camera target on mount
+    // Initialize camera position on mount - position camera relative to player start
     useEffect(() => {
         if (!initialized.current && controlsRef.current) {
-             const startVec = new Vector3(playerPos.x, 0, playerPos.y);
-             controlsRef.current.target.copy(startVec);
-             // Shift camera to maintain the default relative offset
-             camera.position.add(startVec);
-             initialized.current = true;
+            const startVec = new Vector3(playerPos.x, 0, playerPos.y);
+            currentLookAt.current.copy(startVec);
+            
+            // Set camera position relative to player
+            camera.position.set(
+                startVec.x + cameraOffset.current.x,
+                cameraOffset.current.y,
+                startVec.z + cameraOffset.current.z
+            );
+            
+            controlsRef.current.target.copy(startVec);
+            initialized.current = true;
         }
     }, [playerPos, camera]);
 
@@ -46,8 +54,8 @@ const CameraController: React.FC<{ playerPos: Position }> = ({ playerPos }) => {
         if (!controlsRef.current) return;
 
         const targetV = new Vector3(playerPos.x, 0, playerPos.y);
-        // Smoothly interpolate current look target to player position
-        const nextSmoothed = currentLookAt.current.clone().lerp(targetV, 5 * delta);
+        // Smooth follow with slightly faster interpolation for responsive feel
+        const nextSmoothed = currentLookAt.current.clone().lerp(targetV, 6 * delta);
         
         // Determine how much we moved this frame
         const moveDelta = nextSmoothed.clone().sub(currentLookAt.current);
@@ -69,9 +77,10 @@ const CameraController: React.FC<{ playerPos: Position }> = ({ playerPos }) => {
         zoomSpeed={0.5}
         panSpeed={0.5}
         rotateSpeed={0.5}
-        minZoom={10}
-        maxZoom={100}
-        maxPolarAngle={Math.PI / 2 - 0.05} // Prevent going below ground
+        minZoom={30}
+        maxZoom={120}
+        maxPolarAngle={Math.PI / 2.2} // Limit angle to keep good view of maze
+        minPolarAngle={Math.PI / 6} // Prevent too top-down view
     />;
 }
 
@@ -177,15 +186,16 @@ const GameLogic: React.FC<GameSceneProps> = ({ mazeData, character, onScoreUpdat
 
   return (
     <>
-        <OrthographicCamera makeDefault position={[20, 20, 20]} zoom={40} near={-50} far={200} />
+        {/* Camera positioned closer with higher zoom for tight follow perspective */}
+        <OrthographicCamera makeDefault position={[8, 10, 8]} zoom={55} near={-50} far={200} />
         <CameraController playerPos={playerPos} />
         
-        <ambientLight intensity={0.8} />
-        <pointLight position={[10, 20, 10]} intensity={0.5} castShadow />
-        <directionalLight position={[-10, 20, -10]} intensity={0.3} castShadow />
+        <ambientLight intensity={0.9} />
+        <pointLight position={[10, 20, 10]} intensity={0.6} castShadow />
+        <directionalLight position={[-5, 15, -5]} intensity={0.4} castShadow />
         
         <color attach="background" args={['#bae6fd']} />
-        <fog attach="fog" args={['#bae6fd', 20, 60]} />
+        <fog attach="fog" args={['#bae6fd', 15, 45]} />
 
         <MazeRenderer mazeData={mazeData} />
         <Player position={playerPos} type={character} />
