@@ -87,15 +87,15 @@ function App() {
 
   // Splash Screen - Cute turtle face
   const SplashScreen = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-lime-500 relative overflow-hidden">
-      {/* Centered turtle emoji */}
-      <div className="text-[150px] animate-pulse">
+    <div className="flex flex-col items-center justify-center h-screen w-full bg-lime-500 relative overflow-hidden safe-area-inset">
+      {/* Centered turtle emoji - responsive size */}
+      <div className="text-[100px] sm:text-[120px] md:text-[150px] animate-pulse">
         🐢
       </div>
       
-      {/* Logo at bottom */}
-      <div className="absolute bottom-24">
-        <h1 className="text-4xl font-bold text-white tracking-tight">
+      {/* Logo at bottom - with safe area padding */}
+      <div className="absolute bottom-16 sm:bottom-20 md:bottom-24 pb-safe">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
           amazee
         </h1>
       </div>
@@ -152,55 +152,55 @@ function App() {
 
   // Home Screen - Duolingo inspired clean design
   const HomeScreen = () => (
-    <div className="flex flex-col min-h-screen w-full bg-white">
-      {/* Main Content - Centered */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+    <div className="flex flex-col h-screen w-full bg-white overflow-hidden">
+      {/* Main Content - Centered with flex-1 but constrained */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-12 min-h-0">
         {/* Mascot/Character Display */}
-        <div className="mb-8 relative">
+        <div className="mb-4 sm:mb-8 relative">
           {/* Shadow circle */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-8 bg-gray-200 rounded-full blur-sm"></div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 sm:w-32 h-6 sm:h-8 bg-gray-200 rounded-full blur-sm"></div>
           {/* Character - shows selected character or turtle by default */}
-          <div className="text-8xl animate-bounce" style={{ animationDuration: '2s' }}>
+          <div className="text-6xl sm:text-7xl md:text-8xl animate-bounce" style={{ animationDuration: '2s' }}>
             {character === CharacterType.BEAR ? '🐻' : '🐢'}
           </div>
         </div>
 
         {/* Title */}
-        <h1 className="text-4xl md:text-5xl font-bold text-teal-500 tracking-tight mb-3">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-teal-500 tracking-tight mb-2 sm:mb-3">
           amazee
         </h1>
         
         {/* Tagline */}
-        <p className="text-lg text-gray-500 font-medium">
+        <p className="text-base sm:text-lg text-gray-500 font-medium">
           Collect items!
         </p>
       </div>
 
-      {/* Bottom Section - Fixed buttons */}
-      <div className="px-6 pb-8 space-y-3 max-w-md mx-auto w-full">
+      {/* Bottom Section - Fixed buttons with safe area */}
+      <div className="px-4 sm:px-6 pb-6 sm:pb-8 space-y-2 sm:space-y-3 max-w-md mx-auto w-full flex-shrink-0" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         {/* Character Selection */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3 sm:mb-4">
           <button 
             onClick={() => { setCharacter(CharacterType.TURTLE); audioService.playSelect(); }}
-            className={`py-4 px-4 rounded-2xl font-bold text-lg transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1
+            className={`py-3 sm:py-4 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1
               ${character === CharacterType.TURTLE 
                 ? 'bg-teal-500 text-white border-teal-700' 
                 : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'}
             `}
           >
-            <span className="text-2xl">🐢</span>
+            <span className="text-xl sm:text-2xl">🐢</span>
             <span>S</span>
           </button>
           
           <button 
             onClick={() => { setCharacter(CharacterType.BEAR); audioService.playSelect(); }}
-            className={`py-4 px-4 rounded-2xl font-bold text-lg transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1
+            className={`py-3 sm:py-4 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1
               ${character === CharacterType.BEAR 
                 ? 'bg-amber-500 text-white border-amber-700' 
                 : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'}
             `}
           >
-            <span className="text-2xl">🐻</span>
+            <span className="text-xl sm:text-2xl">🐻</span>
             <span>Z</span>
           </button>
         </div>
@@ -209,7 +209,7 @@ function App() {
         <button 
           onClick={startGame}
           disabled={!character}
-          className={`w-full py-4 rounded-2xl font-bold text-lg tracking-wide transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1 uppercase
+          className={`w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg tracking-wide transition-all duration-200 flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:mt-1 uppercase
             ${character 
               ? 'bg-teal-500 text-white border-teal-700 hover:bg-teal-600' 
               : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'}
@@ -224,7 +224,7 @@ function App() {
             const msg = prompt("Enter your victory message:", customMessage);
             if (msg) setCustomMessage(msg);
           }}
-          className="w-full py-4 rounded-2xl font-bold text-lg text-teal-500 bg-white border-2 border-gray-200 hover:bg-gray-50 transition-all duration-200 border-b-4 border-b-gray-300 active:border-b-0 active:mt-1"
+          className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg text-teal-500 bg-white border-2 border-gray-200 hover:bg-gray-50 transition-all duration-200 border-b-4 border-b-gray-300 active:border-b-0 active:mt-1"
         >
        Finishing Message
         </button>

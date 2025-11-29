@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { Canvas, useFrame, useThree, ThreeElements } from '@react-three/fiber';
-import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { OrthographicCamera } from '@react-three/drei';
+import { Vector3, Raycaster, Vector2, Plane } from 'three';
 import { CharacterType, MazeData, Position } from '../types';
 import MazeRenderer from './MazeRenderer';
 import Player from './Player';
@@ -22,92 +22,88 @@ interface GameSceneProps {
   onFinish: () => void;
 }
 
-// Camera controller that follows player with a close follow perspective
+// Simple camera controller that follows player (no orbit controls for mobile performance)
 const CameraController: React.FC<{ playerPos: Position }> = ({ playerPos }) => {
-    const { camera, gl } = useThree();
-    const controlsRef = useRef<any>(null);
-    
-    // Camera offset - positioned behind and above the player for a closer follow view
-    const cameraOffset = useRef(new Vector3(6, 8, 6)); // Closer offset for tighter follow
-    const currentLookAt = useRef(new Vector3(playerPos.x, 0, playerPos.y));
+    const { camera } = useThree();
+    const currentTarget = useRef(new Vector3(playerPos.x, 0, playerPos.y));
     const initialized = useRef(false);
     
-    // Initialize camera position on mount - position camera relative to player start
+    // Initialize camera position on mount
     useEffect(() => {
-        if (!initialized.current && controlsRef.current) {
+        if (!initialized.current) {
             const startVec = new Vector3(playerPos.x, 0, playerPos.y);
-            currentLookAt.current.copy(startVec);
-            
-            // Set camera position relative to player
-            camera.position.set(
-                startVec.x + cameraOffset.current.x,
-                cameraOffset.current.y,
-                startVec.z + cameraOffset.current.z
-            );
-            
-            controlsRef.current.target.copy(startVec);
+            currentTarget.current.copy(startVec);
+            camera.position.set(startVec.x + 6, 10, startVec.z + 6);
+            camera.lookAt(startVec);
             initialized.current = true;
         }
     }, [playerPos, camera]);
 
     useFrame((state, delta) => {
-        if (!controlsRef.current) return;
-
         const targetV = new Vector3(playerPos.x, 0, playerPos.y);
-        // Smooth follow with slightly faster interpolation for responsive feel
-        const nextSmoothed = currentLookAt.current.clone().lerp(targetV, 6 * delta);
+        // Smooth follow
+        currentTarget.current.lerp(targetV, 6 * delta);
         
-        // Determine how much we moved this frame
-        const moveDelta = nextSmoothed.clone().sub(currentLookAt.current);
-        
-        // Drag both camera and controls target by this delta
-        camera.position.add(moveDelta);
-        controlsRef.current.target.add(moveDelta);
-        
-        currentLookAt.current.copy(nextSmoothed);
+        // Update camera position to follow player
+        camera.position.set(
+            currentTarget.current.x + 6,
+            10,
+            currentTarget.current.z + 6
+        );
+        camera.lookAt(currentTarget.current);
     });
 
-    return <OrbitControls 
-        ref={controlsRef} 
-        args={[camera, gl.domElement]} 
-        makeDefault 
-        enablePan={true} 
-        enableZoom={true} 
-        enableRotate={true}
-        zoomSpeed={0.5}
-        panSpeed={0.5}
-        rotateSpeed={0.5}
-        minZoom={30}
-        maxZoom={120}
-        maxPolarAngle={Math.PI / 2.2} // Limit angle to keep good view of maze
-        minPolarAngle={Math.PI / 6} // Prevent too top-down view
-    />;
+    return null;
 }
 
 const GameLogic: React.FC<GameSceneProps> = ({ mazeData, character, onScoreUpdate, onFinish }) => {
   const [playerPos, setPlayerPos] = useState<Position>(mazeData.start);
   const [items, setItems] = useState<Position[]>(mazeData.collectibles);
+  const { camera, gl } = useThree();
   
   // Input handling refs
-  const touchStart = useRef<{x: number, y: number} | null>(null);
+  const touchStart = useRef<{x: number, y: number, time: number} | null>(null);
+  const raycaster = useRef(new Raycaster());
+  const groundPlane = useRef(new Plane(new Vector3(0, 1, 0), 0));
 
   const movePlayer = useCallback((dx: number, dy: number) => {
     setPlayerPos((prev) => {
         const nextX = Math.round(prev.x + dx);
         const nextY = Math.round(prev.y + dy);
 
-        // Check bounds and walls
         if (
             nextY >= 0 && nextY < mazeData.grid.length &&
             nextX >= 0 && nextX < mazeData.grid[0].length &&
             mazeData.grid[nextY][nextX] !== 'WALL'
         ) {
-            // Valid move: Play sound immediately (side effect safely outside render logic mostly,
-            // but for stricter purity we should do this in a useEffect, strictly speaking.
-            // However, doing it here ensures immediate feedback before render).
-            // To be perfectly React clean, we can do it in useEffect based on change, 
-            // but this is acceptable for game input handlers usually.
-            // BETTER: Return new state, use useEffect to play sound.
+            return { x: nextX, y: nextY };
+        }
+        return prev;
+    });
+  }, [mazeData]);
+
+  // Move towards a target position (for tap-to-move)
+  const moveTowards = useCallback((targetX: number, targetY: number) => {
+    setPlayerPos((prev) => {
+        const dx = targetX - prev.x;
+        const dy = targetY - prev.y;
+        
+        // Determine primary direction
+        let moveX = 0, moveY = 0;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            moveX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+        } else {
+            moveY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+        }
+        
+        const nextX = prev.x + moveX;
+        const nextY = prev.y + moveY;
+        
+        if (
+            nextY >= 0 && nextY < mazeData.grid.length &&
+            nextX >= 0 && nextX < mazeData.grid[0].length &&
+            mazeData.grid[nextY][nextX] !== 'WALL'
+        ) {
             return { x: nextX, y: nextY };
         }
         return prev;
@@ -116,24 +112,20 @@ const GameLogic: React.FC<GameSceneProps> = ({ mazeData, character, onScoreUpdat
 
   // Effect to play step sound when player actually moves
   useEffect(() => {
-      // Avoid playing on mount
-      // We can check if it matches start pos, but simple way:
       audioService.playStep();
   }, [playerPos]);
 
   // Check collisions (Collectibles & End)
   useEffect(() => {
-    // Check item pickup
     const itemIndex = items.findIndex(i => i.x === playerPos.x && i.y === playerPos.y);
     if (itemIndex !== -1) {
         audioService.playPickup();
         const newItems = [...items];
         newItems.splice(itemIndex, 1);
         setItems(newItems);
-        onScoreUpdate(1); // Increment score by 1
+        onScoreUpdate(1);
     }
 
-    // Check finish
     if (playerPos.x === mazeData.end.x && playerPos.y === mazeData.end.y) {
         audioService.playWin();
         onFinish();
@@ -154,48 +146,79 @@ const GameLogic: React.FC<GameSceneProps> = ({ mazeData, character, onScoreUpdat
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [movePlayer]);
 
-  // Swipe controls
+  // Touch controls - tap to move towards touch, swipe for direction
   useEffect(() => {
+      const canvas = gl.domElement;
+      
       const handleTouchStart = (e: TouchEvent) => {
-          touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          e.preventDefault();
+          touchStart.current = { 
+              x: e.touches[0].clientX, 
+              y: e.touches[0].clientY,
+              time: Date.now()
+          };
       };
+      
       const handleTouchEnd = (e: TouchEvent) => {
+          e.preventDefault();
           if (!touchStart.current) return;
+          
           const endX = e.changedTouches[0].clientX;
           const endY = e.changedTouches[0].clientY;
           const diffX = endX - touchStart.current.x;
           const diffY = endY - touchStart.current.y;
+          const elapsed = Date.now() - touchStart.current.time;
           
-          const threshold = 15;
+          const swipeThreshold = 30;
+          const tapThreshold = 15;
           
-          if (Math.abs(diffX) > Math.abs(diffY)) {
-              if (Math.abs(diffX) > threshold) movePlayer(diffX > 0 ? 1 : -1, 0);
-          } else {
-              if (Math.abs(diffY) > threshold) movePlayer(0, diffY > 0 ? 1 : -1);
+          // Check if it's a swipe
+          if (Math.abs(diffX) > swipeThreshold || Math.abs(diffY) > swipeThreshold) {
+              // Swipe - move in swipe direction
+              if (Math.abs(diffX) > Math.abs(diffY)) {
+                  movePlayer(diffX > 0 ? 1 : -1, 0);
+              } else {
+                  movePlayer(0, diffY > 0 ? 1 : -1);
+              }
+          } else if (Math.abs(diffX) < tapThreshold && Math.abs(diffY) < tapThreshold && elapsed < 300) {
+              // Tap - move towards tapped position
+              const rect = canvas.getBoundingClientRect();
+              const x = ((endX - rect.left) / rect.width) * 2 - 1;
+              const y = -((endY - rect.top) / rect.height) * 2 + 1;
+              
+              raycaster.current.setFromCamera(new Vector2(x, y), camera);
+              const intersection = new Vector3();
+              raycaster.current.ray.intersectPlane(groundPlane.current, intersection);
+              
+              if (intersection) {
+                  const targetX = Math.round(intersection.x);
+                  const targetY = Math.round(intersection.z);
+                  moveTowards(targetX, targetY);
+              }
           }
+          
           touchStart.current = null;
       };
 
-      window.addEventListener('touchstart', handleTouchStart);
-      window.addEventListener('touchend', handleTouchEnd);
+      canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+      canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+      
       return () => {
-          window.removeEventListener('touchstart', handleTouchStart);
-          window.removeEventListener('touchend', handleTouchEnd);
+          canvas.removeEventListener('touchstart', handleTouchStart);
+          canvas.removeEventListener('touchend', handleTouchEnd);
       }
-  }, [movePlayer]);
+  }, [movePlayer, moveTowards, camera, gl]);
 
   return (
     <>
-        {/* Camera positioned closer with higher zoom for tight follow perspective */}
         <OrthographicCamera makeDefault position={[8, 10, 8]} zoom={55} near={-50} far={200} />
         <CameraController playerPos={playerPos} />
         
-        <ambientLight intensity={0.9} />
-        <pointLight position={[10, 20, 10]} intensity={0.6} castShadow />
-        <directionalLight position={[-5, 15, -5]} intensity={0.4} castShadow />
+        {/* Single ambient light only - no shadows */}
+        <ambientLight intensity={1.2} />
         
+        {/* Plain sky blue background */}
         <color attach="background" args={['#bae6fd']} />
-        <fog attach="fog" args={['#bae6fd', 15, 45]} />
 
         <MazeRenderer mazeData={mazeData} />
         <Player position={playerPos} type={character} />
@@ -212,7 +235,7 @@ const GameLogic: React.FC<GameSceneProps> = ({ mazeData, character, onScoreUpdat
 const GameScene: React.FC<GameSceneProps> = (props) => {
   return (
     <div className="w-full h-full relative bg-blue-50">
-        <Canvas shadows dpr={[1, 2]}>
+        <Canvas dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: 'high-performance' }}>
             <Suspense fallback={null}>
                 <GameLogic {...props} />
             </Suspense>
